@@ -6,56 +6,53 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var imageUrl: String = ""
+    @State private var showImage: Bool = false
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        VStack {
+            if showImage, let url = URL(string: imageUrl) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                    } else if phase.error != nil {
+                        Text("Error loading image")
+                    } else {
+                        ProgressView()
                     }
                 }
-                .onDelete(perform: deleteItems)
+                .frame(height: 300)
+                .padding()
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
+
+            Button(action: fetchRandomImage) {
+                Text("Show Random Duck")
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
             }
-        } detail: {
-            Text("Select an item")
         }
+        .padding()
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
+    func fetchRandomImage() {
+        guard let url = URL(string: "https://random-d.uk/api/random") else { return }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            if let data = data, let json = try? JSONSerialization.jsonObject(with: data, options: []), let dict = json as? [String: Any], let url = dict["url"] as? String {
+                DispatchQueue.main.async {
+                    self.imageUrl = url
+                    self.showImage = true
+                }
             }
-        }
+        }.resume()
     }
 }
 
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
-}
+
+
